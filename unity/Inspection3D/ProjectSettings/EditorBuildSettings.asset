@@ -1,0 +1,13 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1045 &1
+EditorBuildSettings:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Scenes:
+  - enabled: 1
+    path: Assets/Scenes/Inspection.unity
+    guid: aa956083f6c097540b3eca69870eb5d4
+  m_configObjects:
+    com.unity.xr.arfoundation.simulation_settings: {fileID: 11400000, guid: d269b023c7a07764da71f1357c116c80, type: 2}
+    com.unity.xr.management.loader_settings: {fileID: 11400000, guid: a4dc1b03c44ea424aaa1956cbf6750a4, type: 2}
