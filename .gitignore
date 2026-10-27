@@ -1,4 +1,4 @@
-# ---------- Unity ----------
+﻿# ---------- Unity ----------
 unity/**/[Ll]ibrary/
 unity/**/[Tt]emp/
 unity/**/[Oo]bj/
@@ -43,3 +43,5 @@ Thumbs.db
 
 # 过程稿（不进仓库）
 巡检项目-3D版_方案与软件清单.md
+
+
