@@ -321,19 +321,19 @@ Unity 端会以巡检员账号**自动登录**（账号密码在 `Canvas/FormPan
 
 ## 8. 题面第 5 节：三个 AR 基础问题
 
-**Q1：改成真实 AR 后，平面检测和点击放置通常需要哪些 AR Foundation 能力？**
+**Q1：真要跑在手机上，平面检测和点击放置要用哪些 AR Foundation 能力？**
 
-需要 `AR Session` + `XR Origin` 作为基础；`ARPlaneManager` 做水平面检测（Detection Mode = Horizontal，配合 `AR Default Plane` 预制体可视化）；`ARRaycastManager` 把屏幕点击转成射线，用 `TrackableType.PlaneWithinPolygon` 命中已识别平面；命中后取 `ARRaycastHit.pose` 在该位置实例化标记，并通过 `ARAnchorManager` 给标记挂 ARAnchor 以减少设备移动时的漂移。此外还需要 `ARCameraManager`（相机画面作背景）、相机权限申请，以及 `ARSession.state` 的状态检查。可选 `AROcclusionManager` 做遮挡。
+主要是三样：`AR Session` 起会话，`ARPlaneManager` 找水平面（挂个平面预制体就能把网格画出来），`ARRaycastManager` 把点击转成射线、用 `PlaneWithinPolygon` 判断点到了哪块平面。命中之后按 `ARRaycastHit.pose` 在那个位置放标记；想稳一点再挂 `ARAnchorManager` 的锚点，减少走动时的漂移。相机画面和权限靠 `ARCameraManager`，另外要检查 `ARSession.state`。
 
-**Q2：为什么只保存 Unity 中的 x/y/z 坐标，通常不能保证下次启动对应同一个真实位置？**
+**Q2：为什么只存 x/y/z，下次启动通常对不回同一个真实位置？**
 
-AR 的世界坐标系原点由**会话开始那一刻设备的位姿**决定，每次启动都不同，同一个墙角两次运行会得到完全不同的坐标；视觉里程计 + IMU 还会持续漂移，系统修正 tracking 时坐标系也会被微调；不同设备、不同尺度也不通用。只存三个数，等于存了“某个随机坐标系里的一个点”，没有与之绑定的地图信息。要跨启动还原，需要 ARCore Cloud Anchor、ARKit ARWorldMap 这类持久化锚点，或用二维码/图像标记做现场标定。
+因为 AR 的坐标原点是**这次打开 App 时设备所在的位置**，每次启动都不一样——同一个墙角，今天和明天存下来的三个数完全不同。而且视觉里程计会漂移，系统修正 tracking 时坐标系还会被微调。只存坐标，等于存了“某次会话坐标系里的一个点”，没有能对回现实的地图；要跨启动还原，得用 CloudAnchor、ARWorldMap 这类持久化锚点，或者现场贴二维码做标定。
 
-补充：本项目的虚拟场景世界原点是固定的（`Inspection.unity` 里的坐标恒定），所以存 x/y/z 就能精确还原位置 —— 这正是普通 3D 场景和真实 AR 最本质的差别。
+顺带一句：我们这个虚拟场景的原点是固定的，所以存坐标就能还原——这正好是普通 3D 和真 AR 的分界线。
 
-**Q3：AR 初始化失败、设备不支持或 Tracking 异常时，应该如何提示用户？**
+**Q3：AR 初始化失败、设备不支持、Tracking 异常时怎么提示？**
 
-启动前检查 `ARSession.state` 与 ARCore 可用性：设备不在支持列表或未安装 Google Play Services for AR 时，明确提示“当前设备不支持 AR”并禁用放置功能，而不是让相机黑屏；相机权限被拒时提示并引导去系统设置开启；Tracking 变成 `Limited` 时提示“请缓慢移动手机、保证光线充足、对准有纹理的表面”；初始化超时或 Error 时提供“重试/重置会话”入口。核心原则是：任何异常都要有可读的中文状态提示和恢复入口，不能崩溃或静默失效。
+分开处理，别让人对着黑屏发呆：设备不支持或没装 ARCore，就直接说“这台设备不支持 AR”，顺手把放置功能关掉；相机权限被拒，提示去设置里开；Tracking 变差（`Limited`）就让他慢点动、找光线好和有纹理的地面；初始化失败或报错，给个“重试/重置会话”的入口。原则是任何异常都得有中文提示、有恢复入口，不能崩，也不能静默失效。
 
 ---
 
