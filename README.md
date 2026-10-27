@@ -18,6 +18,22 @@
 
 ---
 
+## 0.1 效果展示
+
+| 巡检现场：三个标记按状态上色（红/橙/绿） | 点击设备后在命中点放置标记并填写 |
+|---|---|
+| ![巡检现场](docs/images/01-unity-scene.png) | ![填写表单](docs/images/02-unity-form.png) |
+
+| 点击历史标记查看详情 | 管理端：三种状态、三种优先级 |
+|---|---|
+| ![问题详情](docs/images/03-unity-detail.png) | ![管理端列表](docs/images/04-web-list.png) |
+
+**XR Simulation 演示（加分项）**：编辑器内模拟真实 AR 的平面检测与点击放置
+
+![XR Simulation](docs/images/05-ar-simulation.png)
+
+---
+
 ## 1. 目录结构
 
 ```
