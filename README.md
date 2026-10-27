@@ -24,13 +24,17 @@
 |---|---|
 | ![巡检现场](docs/images/01-unity-scene.png) | ![填写表单](docs/images/02-unity-form.png) |
 
-| 点击历史标记查看详情 | 管理端：三种状态、三种优先级 |
+| 点击历史标记查看详情 | 管理端登录（演示账号，角色不同） |
 |---|---|
-| ![问题详情](docs/images/03-unity-detail.png) | ![管理端列表](docs/images/04-web-list.png) |
+| ![问题详情](docs/images/03-unity-detail.png) | ![登录页](docs/images/04-web-login.png) |
+
+| 管理员：可改状态、可删除，显示上报人/处理人 | 巡检员：只读，状态与删除被禁用 |
+|---|---|
+| ![管理员视图](docs/images/05-web-admin.png) | ![巡检员视图](docs/images/06-web-readonly.png) |
 
 **XR Simulation 演示（加分项）**：编辑器内模拟真实 AR 的平面检测与点击放置
 
-![XR Simulation](docs/images/05-ar-simulation.png)
+![XR Simulation](docs/images/07-ar-simulation.png)
 
 ---
 
