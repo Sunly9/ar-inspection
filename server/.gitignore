@@ -1,0 +1,13 @@
+# 编译产物
+*.exe
+inspection-server
+
+# 运行时数据（保留目录结构，不提交数据库）
+data/*.db
+data/*.db-shm
+data/*.db-wal
+data/*.json
+
+# 编辑器
+.idea/
+.vscode/
