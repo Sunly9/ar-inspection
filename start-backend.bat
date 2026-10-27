@@ -1,22 +1,28 @@
 @echo off
 chcp 65001 >nul
-setlocal
+setlocal enabledelayedexpansion
 title 巡检后端 (Go) - http://127.0.0.1:8080
 cd /d "%~dp0server"
 
-netstat -ano | findstr /r /c:":8080 .*LISTENING" >nul 2>nul
-if not errorlevel 1 (
-    echo [提示] 8080 端口已被占用，后端可能已经在运行。
-    echo        先访问 http://127.0.0.1:8080/api/health 确认；
-    echo        如果确认是旧进程，关掉它再运行本脚本。
+rem 端口被占用时，询问是否结束旧进程（常见于改完代码忘记关旧窗口）
+for /f "tokens=5" %%p in ('netstat -ano ^| findstr /r /c:":8080 .*LISTENING"') do set "OLDPID=%%p"
+if defined OLDPID (
+    echo [提示] 8080 端口被进程 !OLDPID! 占用，可能是上一次启动的后端。
+    choice /c YN /n /m "是否结束它并继续启动? [Y=结束 / N=退出] "
+    if errorlevel 2 (
+        echo 已取消。
+        echo.
+        pause
+        exit /b 0
+    )
+    taskkill /f /pid !OLDPID! >nul 2>nul
+    timeout /t 1 /nobreak >nul
+    echo 已结束旧进程 !OLDPID!。
     echo.
-    pause
-    exit /b 0
 )
 
-echo.
 echo 健康检查: http://127.0.0.1:8080/api/health
-echo 问题列表: http://127.0.0.1:8080/api/issues
+echo 登录接口: POST http://127.0.0.1:8080/api/login
 echo 关闭本窗口或按 Ctrl+C 即可停止服务。
 echo.
 

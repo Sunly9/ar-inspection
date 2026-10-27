@@ -368,7 +368,7 @@ AR 的世界坐标系原点由**会话开始那一刻设备的位姿**决定，�
 
 | 现象 | 原因 / 处理 |
 |---|---|
-| `bind: Only one usage of each socket address` | 8080 已被占用，先关掉旧的后端窗口；脚本会自动检测并提示 |
+| `bind: Only one usage of each socket address` / 登录报「接口不存在: POST /api/login」 | 8080 上还是**旧的后端进程**（改完代码没重启）。`start-backend.bat` 会检测到并询问是否结束旧进程；也可以手动关掉那个窗口再启动 |
 | PowerShell 报“禁止运行脚本”（`npm.ps1`） | 用 `npm.cmd`，或执行 `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` |
 | 网页打开是空白 / 报 `ERR_CONNECTION_REFUSED` | 后端没启动；先双击 `start-backend.bat` |
 | 网页显示“无法连接后端”红色横幅 | 后端停了或端口变了；这是**预期行为**（不白屏），重启后端后点「重试」 |
