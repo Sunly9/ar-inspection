@@ -65,24 +65,9 @@ namespace Inspection
             EnsureClickFocus(titleInput);
             EnsureClickFocus(descInput);
 
+            // 注意：面板在 Awake 里会被隐藏，隐藏的 GameObject 上的协程起不来，
+            // 所以登录不能放在这里做——由常驻的 MarkerPlacementController（GameManager）负责。
             if (panel != null) panel.SetActive(false);
-
-            // Unity 端以“巡检员”身份自动登录；上报时会带上这个 token
-            StartCoroutine(LoginRoutine());
-        }
-
-        System.Collections.IEnumerator LoginRoutine()
-        {
-            yield return AuthClient.Login(
-                baseUrl,
-                loginUsername,
-                loginPassword,
-                () => Debug.Log("[巡检] 已登录：" + AuthClient.DisplayName + "（" + AuthClient.Role + "）"),
-                error =>
-                {
-                    Debug.LogWarning("[巡检] 登录失败：" + error);
-                    if (toast != null) toast.Show("登录失败：" + error, ToastUI.Error);
-                });
         }
 
         /// <summary>在运行时给输入框加一个“点击即聚焦”的兜底处理。</summary>
@@ -210,7 +195,37 @@ namespace Inspection
 
             SetSubmitting(true);
             if (hintText != null) hintText.text = "";
-            StartCoroutine(Send(payload));
+
+            // 还没登录就先登录再发（后端重启后 token 会失效，这里也兜住）
+            if (!AuthClient.IsLoggedIn)
+            {
+                StartCoroutine(LoginThenSend(payload));
+            }
+            else
+            {
+                StartCoroutine(Send(payload));
+            }
+        }
+
+        IEnumerator LoginThenSend(CreateIssueRequest payload)
+        {
+            bool ok = false;
+            string error = null;
+
+            yield return AuthClient.Login(baseUrl, loginUsername, loginPassword,
+                () => ok = true,
+                err => error = err);
+
+            if (!ok)
+            {
+                SetSubmitting(false);
+                if (hintText != null) hintText.text = error;
+                if (toast != null) toast.Show("登录失败：" + error, ToastUI.Error);
+                yield break;
+            }
+
+            if (toast != null) toast.Show("已登录：" + AuthClient.DisplayName, ToastUI.Info);
+            yield return Send(payload);
         }
 
         IEnumerator Send(CreateIssueRequest payload)
@@ -229,6 +244,16 @@ namespace Inspection
                 {
                     // 失败时保留标记和表单内容，让用户能直接重试
                     SetSubmitting(false);
+
+                    // token 过期/后端重启：清掉登录态，下次提交会自动重新登录
+                    if (error != null && error.Contains("登录"))
+                    {
+                        AuthClient.Clear();
+                        if (hintText != null) hintText.text = "登录已失效，再点一次提交会自动重新登录";
+                        if (toast != null) toast.Show("登录已失效，请再提交一次", ToastUI.Error);
+                        return;
+                    }
+
                     if (hintText != null) hintText.text = error;
                     if (toast != null) toast.Show("上报失败：" + error, ToastUI.Error);
                 });

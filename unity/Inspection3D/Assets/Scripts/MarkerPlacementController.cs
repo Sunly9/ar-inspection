@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 using UnityEngine.EventSystems;
 
@@ -33,6 +34,36 @@ namespace Inspection
             if (targetCamera == null) targetCamera = Camera.main;
             if (form == null) form = FindObjectOfType<IssueFormController>();
             if (detail == null) detail = FindObjectOfType<IssueDetailPanel>();
+        }
+
+        /// <summary>
+        /// 登录放在这里（GameManager 常驻激活），不能放在表单面板上——
+        /// 面板 Awake 里会被隐藏，隐藏对象上的协程起不来。
+        /// </summary>
+        void Start()
+        {
+            if (form == null) return;
+            StartCoroutine(LoginRoutine());
+        }
+
+        IEnumerator LoginRoutine()
+        {
+            if (AuthClient.IsLoggedIn) yield break;
+
+            yield return AuthClient.Login(
+                form.baseUrl,
+                form.loginUsername,
+                form.loginPassword,
+                () =>
+                {
+                    Debug.Log("[巡检] 已登录：" + AuthClient.DisplayName + "（" + AuthClient.Role + "）");
+                    if (form.toast != null) form.toast.Show("已登录：" + AuthClient.DisplayName, ToastUI.Info);
+                },
+                error =>
+                {
+                    Debug.LogWarning("[巡检] 登录失败：" + error);
+                    if (form.toast != null) form.toast.Show("登录失败：" + error, ToastUI.Error);
+                });
         }
 
         void Update()

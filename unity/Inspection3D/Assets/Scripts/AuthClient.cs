@@ -21,6 +21,14 @@ namespace Inspection
 
         public static bool IsLoggedIn => !string.IsNullOrEmpty(Token);
 
+        /// <summary>清掉登录态（token 过期或被服务端拒绝后调用）。</summary>
+        public static void Clear()
+        {
+            Token = null;
+            DisplayName = null;
+            Role = null;
+        }
+
         [Serializable]
         class LoginRequest
         {
