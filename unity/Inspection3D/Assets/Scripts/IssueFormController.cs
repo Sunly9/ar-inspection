@@ -42,6 +42,7 @@ namespace Inspection
         string priority = "medium";
         bool submitting;
         Vector3 pendingPosition;
+        Vector3 pendingNormal = Vector3.up;
 
         void Awake()
         {
@@ -111,9 +112,10 @@ namespace Inspection
         public bool IsOpen => panel != null && panel.activeSelf;
 
         /// <summary>射线命中新位置时调用：打开面板并显示坐标。</summary>
-        public void OpenWithPosition(Vector3 worldPosition)
+        public void OpenWithPosition(Vector3 worldPosition, Vector3 surfaceNormal = default)
         {
             pendingPosition = worldPosition;
+            pendingNormal = surfaceNormal == default ? Vector3.up : surfaceNormal;
 
             if (panel != null) panel.SetActive(true);
             if (positionText != null)
@@ -181,7 +183,8 @@ namespace Inspection
                 title = title,
                 description = (descInput != null ? descInput.text : "").Trim(),
                 priority = priority,
-                position = PositionDto.From(pendingPosition)
+                position = PositionDto.From(pendingPosition),
+                normal = PositionDto.From(pendingNormal)
             };
 
             SetSubmitting(true);

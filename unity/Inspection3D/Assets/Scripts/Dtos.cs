@@ -36,6 +36,9 @@ namespace Inspection
         public string description;
         public string priority;
         public PositionDto position;
+
+        /// <summary>命中处的表面法线，让标记贴着被点的那个面。</summary>
+        public PositionDto normal;
     }
 
     /// <summary>后端返回的完整问题对象。</summary>
@@ -48,6 +51,7 @@ namespace Inspection
         public string priority;
         public string status;
         public PositionDto position;
+        public PositionDto normal;
         public string createdAt;
         public string updatedAt;
     }

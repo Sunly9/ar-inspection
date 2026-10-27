@@ -70,7 +70,7 @@ namespace Inspection
                 return;
             }
 
-            PlaceAt(hit.point);
+            PlaceAt(hit.point, hit.normal);
         }
 
         static bool IsPointerOverUI()
@@ -79,23 +79,23 @@ namespace Inspection
             return es != null && es.IsPointerOverGameObject();
         }
 
-        void PlaceAt(Vector3 point)
+        void PlaceAt(Vector3 point, Vector3 normal)
         {
             if (detail != null) detail.Hide();
             if (pending == null)
             {
-                pending = CreateMarker(point);
+                pending = CreateMarker(point, normal);
             }
             else
             {
-                pending.MoveTo(point);
+                pending.MoveTo(point, normal);
             }
-            form.OpenWithPosition(point);
+            form.OpenWithPosition(point, normal);
         }
 
-        IssueMarker CreateMarker(Vector3 point)
+        IssueMarker CreateMarker(Vector3 point, Vector3 normal)
         {
-            return IssueMarker.Create(point, IssueMarker.PendingColor, string.Empty, true);
+            return IssueMarker.Create(point, IssueMarker.PendingColor, string.Empty, true, false, normal);
         }
 
         /// <summary>取消填写：把未保存的标记删掉。</summary>

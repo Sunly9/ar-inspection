@@ -155,7 +155,7 @@ npm run dev      # http://127.0.0.1:5173
 | 方法 | 路径 | 请求体 | 成功 | 错误 |
 |---|---|---|---|---|
 | GET | `/api/health` | — | 200 `{"data":{"status":"ok","time":...}}` | — |
-| POST | `/api/issues` | `{title, description, priority, position{x,y,z}}` | 201 + issue | 400 标题为空 / 枚举非法 / 缺坐标 |
+| POST | `/api/issues` | `{title, description, priority, position{x,y,z}, normal{x,y,z}?}` | 201 + issue | 400 标题为空 / 枚举非法 / 缺坐标 |
 | GET | `/api/issues` | — | 200 + items（`createdAt` 倒序） | — |
 | GET | `/api/issues/{id}` | — | 200 + issue | 404 |
 | PATCH | `/api/issues/{id}/status` | `{"status":"resolved"}` | 200 + issue | 400 枚举非法 / 404 不存在 |
@@ -171,6 +171,7 @@ npm run dev      # http://127.0.0.1:5173
   "priority": "high",
   "status": "open",
   "position": { "x": 1.25, "y": 0.8, "z": 2.4 },
+  "normal": { "x": 0, "y": 0, "z": 1 },
   "createdAt": "2026-10-26T07:56:34Z",
   "updatedAt": "2026-10-26T07:56:34Z"
 }
@@ -178,6 +179,9 @@ npm run dev      # http://127.0.0.1:5173
 
 - `priority`：`low` / `medium` / `high`
 - `status`：`open` / `in_progress` / `resolved`，新建固定为 `open`
+- `position`：命中点的世界坐标（米）
+- `normal`：命中处的表面法线，用来还原标记**朝向**（贴在墙上是横的，贴在地面上是竖的）；
+  不传时后端按 `{0,1,0}`（朝上）写入，旧数据也按朝上处理
 - `id`、`status`、时间戳一律由服务端生成，客户端传入会被忽略（防伪造）
 - 时间格式为 **RFC3339 UTC**
 
@@ -202,6 +206,8 @@ npm run dev      # http://127.0.0.1:5173
   红 = 待处理、橙 = 处理中、绿 = 已解决，黄色 = 本次待提交；
   标签 `#序号 优先级` 始终朝向相机；坐标非法或后端未启动时静默跳过
 - 标记的 Collider 全部销毁，不会挡住鼠标射线
+- 标记由「底座圆盘 + 立杆 + 球头」组成：圆盘正压在命中点，钉子**垂直于被点的表面**（点墙是横的、点地面是竖的），
+  朝向随 `normal` 一起存进后端，**重启后仍然保持原来方向**
 - **点击历史标记弹出详情面板**（加分项）：标题、优先级、状态、坐标、上报时间、描述；
   点「关闭」或按 `Esc` 收起；点场景空白处会自动收起并开始放置新标记
 

@@ -43,12 +43,30 @@ namespace Inspection
             }
         }
 
-        public static IssueMarker Create(Vector3 worldPosition, Color color, string labelText, bool bobbing, bool clickable = false)
+        /// <summary>
+        /// 创建一个标记。
+        /// surfaceNormal 是命中点处的表面法线：标记会“垂直钉在被点的那个面上”，
+        /// 底座圆盘正好压在命中点上，这样一眼就能看出标记落在哪。
+        /// </summary>
+        public static IssueMarker Create(Vector3 worldPosition, Color color, string labelText, bool bobbing,
+            bool clickable = false, Vector3 surfaceNormal = default)
         {
+            if (surfaceNormal == default) surfaceNormal = Vector3.up;
+
             var root = new GameObject(bobbing ? "PendingMarker" : "SavedMarker");
             root.transform.position = worldPosition;
+            root.transform.rotation = Quaternion.FromToRotation(Vector3.up, surfaceNormal.normalized);
 
             var material = new Material(Shader.Find("Standard")) { color = color };
+
+            // 底座圆盘：正好压在命中点上，用来指示“标记落在这里”
+            var disc = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            disc.name = "Base";
+            disc.transform.SetParent(root.transform, false);
+            disc.transform.localScale = new Vector3(0.13f, 0.004f, 0.13f);
+            disc.transform.localPosition = new Vector3(0f, 0.004f, 0f);
+            disc.GetComponent<Renderer>().sharedMaterial = material;
+            Destroy(disc.GetComponent<Collider>());
 
             // 立杆
             var pole = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
@@ -127,10 +145,15 @@ namespace Inspection
         }
 
         /// <summary>移动标记（同一次点击只在原地移动，不叠加新标记）。</summary>
-        public void MoveTo(Vector3 worldPosition)
+        public void MoveTo(Vector3 worldPosition, Vector3 surfaceNormal = default)
         {
             anchor = worldPosition;
             transform.position = worldPosition;
+
+            if (surfaceNormal != Vector3.zero && surfaceNormal != default)
+            {
+                transform.rotation = Quaternion.FromToRotation(Vector3.up, surfaceNormal.normalized);
+            }
         }
 
         /// <summary>提交成功：固化在命中点、变绿、停止浮动。</summary>

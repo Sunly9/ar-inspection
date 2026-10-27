@@ -52,6 +52,11 @@ func (a *api) handleCreateIssue(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ts := nowUTC()
+	normal := Position{Y: 1} // 默认“朝上”，兼容不传 normal 的旧客户端
+	if req.Normal != nil {
+		normal = *req.Normal
+	}
+
 	issue := &Issue{
 		ID:          newID(),
 		Title:       req.Title,
@@ -59,6 +64,7 @@ func (a *api) handleCreateIssue(w http.ResponseWriter, r *http.Request) {
 		Priority:    req.Priority,
 		Status:      StatusOpen,
 		Position:    *req.Position,
+		Normal:      normal,
 		CreatedAt:   ts,
 		UpdatedAt:   ts,
 	}

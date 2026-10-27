@@ -63,13 +63,22 @@ namespace Inspection
                 Vector3 position = new Vector3(issue.position.x, issue.position.y, issue.position.z);
                 if (!IsUsable(position)) continue;
 
+                // 用保存时记录的法线还原朝向；老数据没有 normal 就按“朝上”处理
+                Vector3 normal = Vector3.up;
+                if (issue.normal != null)
+                {
+                    var n = new Vector3(issue.normal.x, issue.normal.y, issue.normal.z);
+                    if (n.sqrMagnitude > 0.0001f) normal = n.normalized;
+                }
+
                 restored++;
                 var marker = IssueMarker.Create(
                     position,
                     IssueMarker.ColorForStatus(issue.status),
                     "#" + restored + " " + issue.priority,
                     false,
-                    true);
+                    true,
+                    normal);
                 marker.name = "SavedMarker_" + restored;
                 marker.SetIssue(issue);
             }

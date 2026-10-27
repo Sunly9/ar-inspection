@@ -43,8 +43,10 @@ type Issue struct {
 	Priority    Priority `json:"priority"`
 	Status      Status   `json:"status"`
 	Position    Position `json:"position"`
-	CreatedAt   string   `json:"createdAt"`
-	UpdatedAt   string   `json:"updatedAt"`
+	// Normal 标记贴合处的表面法线，用来还原标记朝向（默认朝上）
+	Normal    Position `json:"normal"`
+	CreatedAt string   `json:"createdAt"`
+	UpdatedAt string   `json:"updatedAt"`
 }
 
 // createIssueRequest 只接收客户端该给的字段；id / status / 时间戳一律由服务端生成
@@ -53,6 +55,7 @@ type createIssueRequest struct {
 	Description string    `json:"description"`
 	Priority    Priority  `json:"priority"`
 	Position    *Position `json:"position"`
+	Normal      *Position `json:"normal"`
 }
 
 type updateStatusRequest struct {
@@ -73,7 +76,17 @@ func (r *createIssueRequest) validate() error {
 	if r.Position == nil {
 		return errors.New("position 不能为空")
 	}
-	return r.Position.validate()
+	if err := r.Position.validate(); err != nil {
+		return err
+	}
+
+	// normal 可选：不传就当作“朝上”，传了必须合法
+	if r.Normal != nil {
+		if err := r.Normal.validate(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (p *Position) validate() error {

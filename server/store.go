@@ -21,6 +21,9 @@ CREATE TABLE IF NOT EXISTS issues (
 	x           REAL NOT NULL,
 	y           REAL NOT NULL,
 	z           REAL NOT NULL,
+	normal_x    REAL NOT NULL DEFAULT 0,
+	normal_y    REAL NOT NULL DEFAULT 1,
+	normal_z    REAL NOT NULL DEFAULT 0,
 	created_at  TEXT NOT NULL,
 	updated_at  TEXT NOT NULL
 );`
@@ -45,24 +48,78 @@ func openStore(path string) (*Store, error) {
 		db.Close()
 		return nil, err
 	}
+	// 旧库补列：normal_* 是后加的字段，老数据默认朝上
+	if err := migrate(db); err != nil {
+		db.Close()
+		return nil, err
+	}
 	return &Store{db: db}, nil
+}
+
+// migrate 给已存在的旧表补上新增的列（SQLite 没有 IF NOT EXISTS 语法，先查再加）。
+func migrate(database *sql.DB) error {
+	rows, err := database.Query(`PRAGMA table_info(issues)`)
+	if err != nil {
+		return err
+	}
+
+	columns := map[string]bool{}
+	for rows.Next() {
+		var (
+			cid, notNull, pk int
+			name, dataType   string
+			defaultValue     sql.NullString
+		)
+		if err := rows.Scan(&cid, &name, &dataType, &notNull, &defaultValue, &pk); err != nil {
+			rows.Close()
+			return err
+		}
+		columns[name] = true
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return err
+	}
+	rows.Close()
+
+	statements := []struct {
+		column string
+		ddl    string
+	}{
+		{"normal_x", `ALTER TABLE issues ADD COLUMN normal_x REAL NOT NULL DEFAULT 0`},
+		{"normal_y", `ALTER TABLE issues ADD COLUMN normal_y REAL NOT NULL DEFAULT 1`},
+		{"normal_z", `ALTER TABLE issues ADD COLUMN normal_z REAL NOT NULL DEFAULT 0`},
+	}
+	for _, s := range statements {
+		if columns[s.column] {
+			continue
+		}
+		if _, err := database.Exec(s.ddl); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *Store) Close() error { return s.db.Close() }
 
 func (s *Store) Create(i *Issue) error {
 	_, err := s.db.Exec(
-		`INSERT INTO issues (id, title, description, priority, status, x, y, z, created_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO issues (id, title, description, priority, status, x, y, z,
+		                     normal_x, normal_y, normal_z, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		i.ID, i.Title, i.Description, string(i.Priority), string(i.Status),
-		i.Position.X, i.Position.Y, i.Position.Z, i.CreatedAt, i.UpdatedAt,
+		i.Position.X, i.Position.Y, i.Position.Z,
+		i.Normal.X, i.Normal.Y, i.Normal.Z,
+		i.CreatedAt, i.UpdatedAt,
 	)
 	return err
 }
 
 func (s *Store) List() ([]Issue, error) {
 	rows, err := s.db.Query(
-		`SELECT id, title, description, priority, status, x, y, z, created_at, updated_at
+		`SELECT id, title, description, priority, status, x, y, z,
+		        normal_x, normal_y, normal_z, created_at, updated_at
 		 FROM issues ORDER BY created_at DESC, id DESC`)
 	if err != nil {
 		return nil, err
@@ -82,7 +139,8 @@ func (s *Store) List() ([]Issue, error) {
 
 func (s *Store) Get(id string) (*Issue, error) {
 	row := s.db.QueryRow(
-		`SELECT id, title, description, priority, status, x, y, z, created_at, updated_at
+		`SELECT id, title, description, priority, status, x, y, z,
+		        normal_x, normal_y, normal_z, created_at, updated_at
 		 FROM issues WHERE id = ?`, id)
 	issue, err := scanIssue(row)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -134,7 +192,9 @@ func scanIssue(sc scanner) (*Issue, error) {
 	)
 	err := sc.Scan(
 		&i.ID, &i.Title, &i.Description, &priority, &status,
-		&i.Position.X, &i.Position.Y, &i.Position.Z, &i.CreatedAt, &i.UpdatedAt,
+		&i.Position.X, &i.Position.Y, &i.Position.Z,
+		&i.Normal.X, &i.Normal.Y, &i.Normal.Z,
+		&i.CreatedAt, &i.UpdatedAt,
 	)
 	if err != nil {
 		return nil, err
