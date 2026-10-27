@@ -61,6 +61,19 @@
 
 ## 3. 怎么启动
 
+### 3.0 一键启动（Windows，推荐）
+
+仓库根目录有四个批处理脚本，**双击即可**：
+
+| 脚本 | 作用 |
+|---|---|
+| `start-all.bat` | 同时打开后端和管理端两个窗口 |
+| `start-backend.bat` | 只启动 Go 后端（`http://127.0.0.1:8080`），会先检查端口是否被占用 |
+| `start-web.bat` | 只启动管理端（`http://127.0.0.1:5173`），首次自动 `npm install`，几秒后自动打开浏览器 |
+| `build-server.bat` | 编译出 `server/inspection-server.exe`，之后启动更快、也不依赖 `go` 命令 |
+
+> 关掉窗口即停止对应服务。macOS / Linux 用户按下面 3.1 ~ 3.3 手动启动。
+
 ### 3.1 后端（先启动）
 
 ```powershell
