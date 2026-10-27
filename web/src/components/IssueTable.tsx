@@ -4,6 +4,7 @@ import { StatusSelect } from './StatusSelect';
 
 interface Props {
   issues: Issue[];
+  canEdit: boolean;
   savingId: string | null;
   onStatusChange: (issue: Issue, status: Status) => void;
   onDelete: (issue: Issue) => void;
@@ -21,7 +22,7 @@ function formatTime(iso: string): string {
   });
 }
 
-export function IssueTable({ issues, savingId, onStatusChange, onDelete }: Props) {
+export function IssueTable({ issues, canEdit, savingId, onStatusChange, onDelete }: Props) {
   return (
     <div className="table-wrap">
       <table className="table">
@@ -30,6 +31,7 @@ export function IssueTable({ issues, savingId, onStatusChange, onDelete }: Props
             <th>标题 / 描述</th>
             <th className="col-narrow">优先级</th>
             <th className="col-narrow">状态</th>
+            <th>上报人</th>
             <th>坐标 (x, y, z)</th>
             <th>上报时间</th>
             <th className="col-action">操作</th>
@@ -48,11 +50,21 @@ export function IssueTable({ issues, savingId, onStatusChange, onDelete }: Props
                   <PriorityTag priority={issue.priority} />
                 </td>
                 <td className="col-narrow">
-                  <StatusSelect
-                    value={issue.status}
-                    disabled={saving}
-                    onChange={next => onStatusChange(issue, next)}
-                  />
+                  {canEdit ? (
+                    <StatusSelect
+                      value={issue.status}
+                      disabled={saving}
+                      onChange={next => onStatusChange(issue, next)}
+                    />
+                  ) : (
+                    <StatusSelect value={issue.status} disabled onChange={() => undefined} />
+                  )}
+                </td>
+                <td className="mono">
+                  {issue.reporter || '—'}
+                  {issue.statusChangedBy ? (
+                    <div className="cell-desc">处理人：{issue.statusChangedBy}</div>
+                  ) : null}
                 </td>
                 <td className="mono">
                   {issue.position.x.toFixed(2)}, {issue.position.y.toFixed(2)},{' '}
@@ -60,13 +72,17 @@ export function IssueTable({ issues, savingId, onStatusChange, onDelete }: Props
                 </td>
                 <td className="mono">{formatTime(issue.createdAt)}</td>
                 <td className="col-action">
-                  <button
-                    className="btn btn--small btn--danger"
-                    disabled={saving}
-                    onClick={() => onDelete(issue)}
-                  >
-                    删除
-                  </button>
+                  {canEdit ? (
+                    <button
+                      className="btn btn--small btn--danger"
+                      disabled={saving}
+                      onClick={() => onDelete(issue)}
+                    >
+                      删除
+                    </button>
+                  ) : (
+                    <span className="mono">—</span>
+                  )}
                 </td>
               </tr>
             );

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"log"
@@ -11,6 +12,66 @@ import (
 
 type api struct {
 	store *Store
+	auth  *Auth
+}
+
+// 用 context 在中间件和 handler 之间传递当前登录用户
+type contextKey int
+
+const userContextKey contextKey = iota
+
+func (a *api) currentUser(r *http.Request) User {
+	user, _ := r.Context().Value(userContextKey).(User)
+	return user
+}
+
+// require 生成鉴权中间件；不传 roles 表示"只要是登录用户即可"
+func (a *api) require(roles ...Role) func(http.Handler) http.Handler {
+	allowed := make(map[Role]bool, len(roles))
+	for _, role := range roles {
+		allowed[role] = true
+	}
+
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			token := strings.TrimSpace(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "))
+			user, ok := a.auth.Lookup(token)
+			if !ok {
+				writeError(w, http.StatusUnauthorized, "UNAUTHORIZED", "请先登录（或登录已过期，请重新登录）")
+				return
+			}
+			if len(allowed) > 0 && !allowed[user.Role] {
+				writeError(w, http.StatusForbidden, "FORBIDDEN", "当前账号没有该操作权限")
+				return
+			}
+			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), userContextKey, user)))
+		})
+	}
+}
+
+// POST /api/login
+func (a *api) handleLogin(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+
+	var req struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_JSON", "请求体不是合法 JSON")
+		return
+	}
+
+	token, user, err := a.auth.Login(strings.TrimSpace(req.Username), req.Password)
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "UNAUTHORIZED", err.Error())
+		return
+	}
+
+	writeData(w, http.StatusOK, map[string]any{
+		"token": token,
+		"user":  user,
+	})
 }
 
 // 统一响应：成功 {"data": ...}；失败 {"error": {"code","message"}}
@@ -65,6 +126,7 @@ func (a *api) handleCreateIssue(w http.ResponseWriter, r *http.Request) {
 		Status:      StatusOpen,
 		Position:    *req.Position,
 		Normal:      normal,
+		Reporter:    a.currentUser(r).DisplayName,
 		CreatedAt:   ts,
 		UpdatedAt:   ts,
 	}
@@ -117,7 +179,7 @@ func (a *api) handleUpdateStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	issue, err := a.store.UpdateStatus(r.PathValue("id"), req.Status, nowUTC())
+	issue, err := a.store.UpdateStatus(r.PathValue("id"), req.Status, nowUTC(), a.currentUser(r).DisplayName)
 	if errors.Is(err, errIssueNotFound) {
 		writeError(w, http.StatusNotFound, "NOT_FOUND", "问题不存在")
 		return
@@ -162,7 +224,7 @@ func withCORS(next http.Handler) http.Handler {
 		h := w.Header()
 		h.Set("Access-Control-Allow-Origin", "*")
 		h.Set("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
-		h.Set("Access-Control-Allow-Headers", "Content-Type")
+		h.Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 		h.Set("Access-Control-Max-Age", "600")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)

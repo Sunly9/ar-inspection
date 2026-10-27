@@ -14,6 +14,10 @@ namespace Inspection
         [Header("后端地址（真机改成电脑局域网 IP）")]
         public string baseUrl = "http://127.0.0.1:8080";
 
+        [Header("登录账号（Unity 端以巡检员身份自动登录）")]
+        public string loginUsername = "inspector";
+        public string loginPassword = "inspector123";
+
         [Header("面板")]
         public GameObject panel;
         public InputField titleInput;
@@ -62,6 +66,23 @@ namespace Inspection
             EnsureClickFocus(descInput);
 
             if (panel != null) panel.SetActive(false);
+
+            // Unity 端以“巡检员”身份自动登录；上报时会带上这个 token
+            StartCoroutine(LoginRoutine());
+        }
+
+        System.Collections.IEnumerator LoginRoutine()
+        {
+            yield return AuthClient.Login(
+                baseUrl,
+                loginUsername,
+                loginPassword,
+                () => Debug.Log("[巡检] 已登录：" + AuthClient.DisplayName + "（" + AuthClient.Role + "）"),
+                error =>
+                {
+                    Debug.LogWarning("[巡检] 登录失败：" + error);
+                    if (toast != null) toast.Show("登录失败：" + error, ToastUI.Error);
+                });
         }
 
         /// <summary>在运行时给输入框加一个“点击即聚焦”的兜底处理。</summary>

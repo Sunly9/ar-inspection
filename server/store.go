@@ -24,6 +24,8 @@ CREATE TABLE IF NOT EXISTS issues (
 	normal_x    REAL NOT NULL DEFAULT 0,
 	normal_y    REAL NOT NULL DEFAULT 1,
 	normal_z    REAL NOT NULL DEFAULT 0,
+	reporter    TEXT NOT NULL DEFAULT '',
+	status_changed_by TEXT NOT NULL DEFAULT '',
 	created_at  TEXT NOT NULL,
 	updated_at  TEXT NOT NULL
 );`
@@ -89,6 +91,8 @@ func migrate(database *sql.DB) error {
 		{"normal_x", `ALTER TABLE issues ADD COLUMN normal_x REAL NOT NULL DEFAULT 0`},
 		{"normal_y", `ALTER TABLE issues ADD COLUMN normal_y REAL NOT NULL DEFAULT 1`},
 		{"normal_z", `ALTER TABLE issues ADD COLUMN normal_z REAL NOT NULL DEFAULT 0`},
+		{"reporter", `ALTER TABLE issues ADD COLUMN reporter TEXT NOT NULL DEFAULT ''`},
+		{"status_changed_by", `ALTER TABLE issues ADD COLUMN status_changed_by TEXT NOT NULL DEFAULT ''`},
 	}
 	for _, s := range statements {
 		if columns[s.column] {
@@ -106,11 +110,13 @@ func (s *Store) Close() error { return s.db.Close() }
 func (s *Store) Create(i *Issue) error {
 	_, err := s.db.Exec(
 		`INSERT INTO issues (id, title, description, priority, status, x, y, z,
-		                     normal_x, normal_y, normal_z, created_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		                     normal_x, normal_y, normal_z, reporter, status_changed_by,
+		                     created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		i.ID, i.Title, i.Description, string(i.Priority), string(i.Status),
 		i.Position.X, i.Position.Y, i.Position.Z,
 		i.Normal.X, i.Normal.Y, i.Normal.Z,
+		i.Reporter, i.StatusChangedBy,
 		i.CreatedAt, i.UpdatedAt,
 	)
 	return err
@@ -119,7 +125,8 @@ func (s *Store) Create(i *Issue) error {
 func (s *Store) List() ([]Issue, error) {
 	rows, err := s.db.Query(
 		`SELECT id, title, description, priority, status, x, y, z,
-		        normal_x, normal_y, normal_z, created_at, updated_at
+		        normal_x, normal_y, normal_z, reporter, status_changed_by,
+		        created_at, updated_at
 		 FROM issues ORDER BY created_at DESC, id DESC`)
 	if err != nil {
 		return nil, err
@@ -140,7 +147,8 @@ func (s *Store) List() ([]Issue, error) {
 func (s *Store) Get(id string) (*Issue, error) {
 	row := s.db.QueryRow(
 		`SELECT id, title, description, priority, status, x, y, z,
-		        normal_x, normal_y, normal_z, created_at, updated_at
+		        normal_x, normal_y, normal_z, reporter, status_changed_by,
+		        created_at, updated_at
 		 FROM issues WHERE id = ?`, id)
 	issue, err := scanIssue(row)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -149,9 +157,9 @@ func (s *Store) Get(id string) (*Issue, error) {
 	return issue, err
 }
 
-func (s *Store) UpdateStatus(id string, status Status, updatedAt string) (*Issue, error) {
-	res, err := s.db.Exec(`UPDATE issues SET status = ?, updated_at = ? WHERE id = ?`,
-		string(status), updatedAt, id)
+func (s *Store) UpdateStatus(id string, status Status, updatedAt, changedBy string) (*Issue, error) {
+	res, err := s.db.Exec(`UPDATE issues SET status = ?, updated_at = ?, status_changed_by = ? WHERE id = ?`,
+		string(status), updatedAt, changedBy, id)
 	if err != nil {
 		return nil, err
 	}
@@ -194,6 +202,7 @@ func scanIssue(sc scanner) (*Issue, error) {
 		&i.ID, &i.Title, &i.Description, &priority, &status,
 		&i.Position.X, &i.Position.Y, &i.Position.Z,
 		&i.Normal.X, &i.Normal.Y, &i.Normal.Z,
+		&i.Reporter, &i.StatusChangedBy,
 		&i.CreatedAt, &i.UpdatedAt,
 	)
 	if err != nil {

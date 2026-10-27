@@ -4,6 +4,8 @@ import { deleteIssue, listIssues, updateStatus } from './api/issues';
 import type { Issue, Status } from './types';
 import { ErrorBanner } from './components/ErrorBanner';
 import { IssueTable } from './components/IssueTable';
+import { LoginPage } from './components/LoginPage';
+import { clearSession, loadSession, type Session } from './session';
 
 type Filter = Status | 'all';
 
@@ -15,11 +17,21 @@ const FILTERS: { value: Filter; label: string }[] = [
 ];
 
 export default function App() {
+  const [session, setSession] = useState<Session | null>(() => loadSession());
   const [issues, setIssues] = useState<Issue[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>('all');
   const [savingId, setSavingId] = useState<string | null>(null);
+
+  const canEdit = session?.user.role === 'admin';
+
+  const signOut = useCallback(() => {
+    clearSession();
+    setSession(null);
+    setIssues([]);
+    setError(null);
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -27,44 +39,65 @@ export default function App() {
     try {
       setIssues(await listIssues());
     } catch (e) {
+      if (e instanceof ApiError && e.status === 401) {
+        signOut();
+        return;
+      }
       setError(e instanceof ApiError ? e.message : '加载失败：未知错误');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [signOut]);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (session) void load();
+  }, [session, load]);
 
-  const handleStatusChange = useCallback(async (issue: Issue, status: Status) => {
-    setSavingId(issue.id);
-    setError(null);
-    try {
-      const updated = await updateStatus(issue.id, status);
-      setIssues(prev => prev.map(item => (item.id === updated.id ? updated : item)));
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : '修改状态失败');
-    } finally {
-      setSavingId(null);
-    }
-  }, []);
+  const handleStatusChange = useCallback(
+    async (issue: Issue, status: Status) => {
+      if (!canEdit) return;
 
-  const handleDelete = useCallback(async (issue: Issue) => {
-    const ok = window.confirm(`确定删除「${issue.title}」？删除后不可恢复。`);
-    if (!ok) return;
+      setSavingId(issue.id);
+      setError(null);
+      try {
+        const updated = await updateStatus(issue.id, status);
+        setIssues(prev => prev.map(item => (item.id === updated.id ? updated : item)));
+      } catch (e) {
+        if (e instanceof ApiError && e.status === 401) {
+          signOut();
+          return;
+        }
+        setError(e instanceof ApiError ? e.message : '修改状态失败');
+      } finally {
+        setSavingId(null);
+      }
+    },
+    [canEdit, signOut],
+  );
 
-    setSavingId(issue.id);
-    setError(null);
-    try {
-      await deleteIssue(issue.id);
-      setIssues(prev => prev.filter(item => item.id !== issue.id));
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : '删除失败');
-    } finally {
-      setSavingId(null);
-    }
-  }, []);
+  const handleDelete = useCallback(
+    async (issue: Issue) => {
+      if (!canEdit) return;
+      const ok = window.confirm(`确定删除「${issue.title}」？删除后不可恢复。`);
+      if (!ok) return;
+
+      setSavingId(issue.id);
+      setError(null);
+      try {
+        await deleteIssue(issue.id);
+        setIssues(prev => prev.filter(item => item.id !== issue.id));
+      } catch (e) {
+        if (e instanceof ApiError && e.status === 401) {
+          signOut();
+          return;
+        }
+        setError(e instanceof ApiError ? e.message : '删除失败');
+      } finally {
+        setSavingId(null);
+      }
+    },
+    [canEdit, signOut],
+  );
 
   const visible = useMemo(
     () => (filter === 'all' ? issues : issues.filter(issue => issue.status === filter)),
@@ -80,6 +113,10 @@ export default function App() {
     [issues],
   );
 
+  if (!session) {
+    return <LoginPage onSuccess={next => setSession(next)} />;
+  }
+
   return (
     <div className="page">
       <header className="header">
@@ -90,9 +127,21 @@ export default function App() {
             {counts.resolved}
           </p>
         </div>
-        <button className="btn" onClick={() => void load()} disabled={loading}>
-          {loading ? '刷新中…' : '刷新'}
-        </button>
+
+        <div className="header__right">
+          <span className="user">
+            {session.user.displayName}
+            <span className={canEdit ? 'user__role user__role--admin' : 'user__role'}>
+              {canEdit ? '管理员' : '巡检员'}
+            </span>
+          </span>
+          <button className="btn" onClick={() => void load()} disabled={loading}>
+            {loading ? '刷新中…' : '刷新'}
+          </button>
+          <button className="btn btn--ghost" onClick={signOut}>
+            退出
+          </button>
+        </div>
       </header>
 
       <nav className="filters" aria-label="按状态筛选">
@@ -109,6 +158,10 @@ export default function App() {
 
       {error ? <ErrorBanner message={error} onRetry={() => void load()} /> : null}
 
+      {!canEdit ? (
+        <p className="readonly-hint">当前是巡检员账号：只能查看，修改状态和删除需要管理员登录。</p>
+      ) : null}
+
       {loading && issues.length === 0 ? (
         <p className="hint">加载中…</p>
       ) : visible.length === 0 ? (
@@ -120,6 +173,7 @@ export default function App() {
       ) : (
         <IssueTable
           issues={visible}
+          canEdit={canEdit}
           savingId={savingId}
           onStatusChange={handleStatusChange}
           onDelete={handleDelete}

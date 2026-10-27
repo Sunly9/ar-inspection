@@ -29,6 +29,7 @@ namespace Inspection
                 req.uploadHandler = new UploadHandlerRaw(Encoding.UTF8.GetBytes(json));
                 req.downloadHandler = new DownloadHandlerBuffer();
                 req.SetRequestHeader("Content-Type", "application/json");
+                Authorize(req);
                 req.timeout = Mathf.CeilToInt(TimeoutSeconds);
 
                 yield return req.SendWebRequest();
@@ -59,6 +60,7 @@ namespace Inspection
 
             using (var req = UnityWebRequest.Get(url))
             {
+                Authorize(req);
                 req.timeout = Mathf.CeilToInt(TimeoutSeconds);
                 yield return req.SendWebRequest();
 
@@ -98,6 +100,15 @@ namespace Inspection
             catch (Exception)
             {
                 return null;
+            }
+        }
+
+        /// <summary>统一的鉴权头：登录后所有请求都带上 token。</summary>
+        static void Authorize(UnityWebRequest req)
+        {
+            if (AuthClient.IsLoggedIn)
+            {
+                req.SetRequestHeader("Authorization", "Bearer " + AuthClient.Token);
             }
         }
 

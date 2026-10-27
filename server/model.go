@@ -42,11 +42,15 @@ type Issue struct {
 	Description string   `json:"description"`
 	Priority    Priority `json:"priority"`
 	Status      Status   `json:"status"`
-	Position    Position `json:"position"`
+	Position Position `json:"position"`
 	// Normal 标记贴合处的表面法线，用来还原标记朝向（默认朝上）
-	Normal    Position `json:"normal"`
-	CreatedAt string   `json:"createdAt"`
-	UpdatedAt string   `json:"updatedAt"`
+	Normal Position `json:"normal"`
+	// Reporter 谁上报的（登录用户）
+	Reporter string `json:"reporter"`
+	// StatusChangedBy 最后一次改状态的人
+	StatusChangedBy string `json:"statusChangedBy"`
+	CreatedAt       string `json:"createdAt"`
+	UpdatedAt       string `json:"updatedAt"`
 }
 
 // createIssueRequest 只接收客户端该给的字段；id / status / 时间戳一律由服务端生成

@@ -110,11 +110,10 @@ go run .
 
 启动后监听 `http://127.0.0.1:8080`，数据库文件自动生成在 `server/data/issues.db`。
 
-自检：
+自检（健康检查是公开的；列表接口需要登录，见 3.2）：
 
 ```powershell
 curl http://127.0.0.1:8080/api/health
-curl http://127.0.0.1:8080/api/issues
 ```
 
 ### 3.2 网页端
@@ -125,6 +124,11 @@ npm install      # 首次
 npm run dev      # http://127.0.0.1:5173
 ```
 
+打开后用演示账号登录（页面底部也写着）：
+
+- 管理员：`admin` / `admin123` —— 可查看、上报、改状态、删除
+- 巡检员：`inspector` / `inspector123` —— 只能查看和上报
+
 > 如果 PowerShell 报“禁止运行脚本”，用 `npm.cmd` 代替 `npm`，或执行
 > `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`。
 
@@ -133,6 +137,9 @@ npm run dev      # http://127.0.0.1:5173
 1. 用 Unity Hub 打开 `unity/Inspection3D`（编辑器版本 2022.3.62f3c1）。
 2. 打开 `Assets/Scenes/Inspection.unity`。
 3. 直接点 **Play**。
+
+Unity 端会以巡检员账号**自动登录**（账号密码在 `Canvas/FormPanel` 的 `IssueFormController` 上可改），
+登录成功才会上报和恢复历史标记；后端未启动时会在顶部提示登录失败。
 
 场景是脚本生成的，如果需要重建：菜单 **`巡检 / 1. 一键生成场景`**（会覆盖 `Inspection.unity`）。
 需要独立可执行文件：菜单 **`巡检 / 2. 构建 Windows exe`**，输出 `Build/Inspection3D.exe`。
@@ -178,14 +185,24 @@ npm run dev      # http://127.0.0.1:5173
 { "error": { "code": "INVALID_ARGUMENT", "message": "title 不能为空" } }
 ```
 
-| 方法 | 路径 | 请求体 | 成功 | 错误 |
-|---|---|---|---|---|
-| GET | `/api/health` | — | 200 `{"data":{"status":"ok","time":...}}` | — |
-| POST | `/api/issues` | `{title, description, priority, position{x,y,z}, normal{x,y,z}?}` | 201 + issue | 400 标题为空 / 枚举非法 / 缺坐标 |
-| GET | `/api/issues` | — | 200 + items（`createdAt` 倒序） | — |
-| GET | `/api/issues/{id}` | — | 200 + issue | 404 |
-| PATCH | `/api/issues/{id}/status` | `{"status":"resolved"}` | 200 + issue | 400 枚举非法 / 404 不存在 |
-| DELETE | `/api/issues/{id}` | — | 200 `{"data":{"id":"..."}}` | 404 不存在 |
+除 `/api/health` 与 `/api/login` 外，其余接口都需要在请求头带 `Authorization: Bearer <token>`。
+
+| 方法 | 路径 | 权限 | 请求体 | 成功 | 错误 |
+|---|---|---|---|---|---|
+| GET | `/api/health` | 公开 | — | 200 `{"data":{"status":"ok","time":...}}` | — |
+| POST | `/api/login` | 公开 | `{username, password}` | 200 `{"data":{"token","user":{"username","displayName","role"}}}` | 401 账号或密码不正确 |
+| POST | `/api/issues` | 巡检员 / 管理员 | `{title, description, priority, position{x,y,z}, normal{x,y,z}?}` | 201 + issue（`reporter` 自动填当前用户） | 400 标题为空 / 枚举非法 / 401 未登录 |
+| GET | `/api/issues` | 登录即可 | — | 200 + items（`createdAt` 倒序） | 401 未登录 |
+| GET | `/api/issues/{id}` | 登录即可 | — | 200 + issue | 401 / 404 |
+| PATCH | `/api/issues/{id}/status` | **仅管理员** | `{"status":"resolved"}` | 200 + issue（`statusChangedBy` 自动填） | 400 枚举非法 / 401 / **403 无权限** / 404 |
+| DELETE | `/api/issues/{id}` | **仅管理员** | — | 200 `{"data":{"id":"..."}}` | 401 / 403 / 404 |
+
+**演示账号**（内置，内存中，重启服务后 token 失效需重新登录）：
+
+| 账号 | 密码 | 角色 | 权限 |
+|---|---|---|---|
+| `inspector` | `inspector123` | 巡检员 | 查看 + 上报 |
+| `admin` | `admin123` | 管理员 | 查看 + 上报 + 改状态 + 删除 |
 
 **数据字段**（三端一致）：
 
@@ -198,6 +215,8 @@ npm run dev      # http://127.0.0.1:5173
   "status": "open",
   "position": { "x": 1.25, "y": 0.8, "z": 2.4 },
   "normal": { "x": 0, "y": 0, "z": 1 },
+  "reporter": "张工（巡检员）",
+  "statusChangedBy": "",
   "createdAt": "2026-10-26T07:56:34Z",
   "updatedAt": "2026-10-26T07:56:34Z"
 }
@@ -208,6 +227,7 @@ npm run dev      # http://127.0.0.1:5173
 - `position`：命中点的世界坐标（米）
 - `normal`：命中处的表面法线，用来还原标记**朝向**（贴在墙上是横的，贴在地面上是竖的）；
   不传时后端按 `{0,1,0}`（朝上）写入，旧数据也按朝上处理
+- `reporter` / `statusChangedBy`：**由服务端按登录用户自动填写**，客户端传入无效（审计字段）
 - `id`、`status`、时间戳一律由服务端生成，客户端传入会被忽略（防伪造）
 - 时间格式为 **RFC3339 UTC**
 
@@ -217,6 +237,10 @@ npm run dev      # http://127.0.0.1:5173
 
 | 决定 | 放弃的方案 | 为什么 |
 |---|---|---|
+| 登录用**内存账号 + 随机 token** | JWT / 落库用户表 | 原型只需要“能证明权限边界”，内存实现 60 行且无依赖；代价是重启后要重新登录，已写进“已知问题” |
+| 权限放在**后端中间件**校验 | 只在前端隐藏按钮 | 前端隐藏按钮只是体验，真正的边界必须在服务端；否则改请求就能越权 |
+| 巡检员/管理员两种角色 | 只做“登录/未登录” | 巡检场景天然分两种人：现场上报 vs 后台处理；两种角色才能讲清楚权限差异 |
+| `reporter` / `statusChangedBy` 由服务端填 | 让客户端传 | 客户端可伪造；审计字段必须服务端按 token 落库 |
 | 走官方「无 AR 设备备选版」 | 硬凑 ARCore 真机 | 手头没有支持 ARCore 的设备，硬凑的交付确定性低；题面明确不因此扣分 |
 | 列表接口返回 `{"data":{"items":[...]}}` | 直接返回 JSON 数组 | Unity 的 `JsonUtility` 不支持顶层数组，包一层就能零依赖解析，省掉 Newtonsoft |
 | 标记放在 `hit.point`，并记录 `normal` | 只存坐标、标记永远竖直 | 只存坐标会导致重启后朝向丢失（这个 bug 实际发生过）；多存一个法线就能对齐“钉在哪个面” |
@@ -240,6 +264,8 @@ npm run dev      # http://127.0.0.1:5173
 - 表单：标题必填校验、描述可选、优先级三选一（含“当前：xxx”文字反馈）、实时显示坐标
 - 提交成功：标记变绿并停止浮动、绿色 toast、面板关闭
 - 提交失败：红色 toast + 行内错误、**保留标记与已填内容**便于重试
+- 启动时以**巡检员账号自动登录**（Inspector 面板可改账号密码），后续请求自动带 `Authorization`；
+  未登录时跳过历史标记恢复，只提示不崩溃
 - 后端未启动时给“无法连接后端”的明确提示
 - **AR Foundation + XR Simulation 演示**（加分项，独立场景 `ARSimulationDemo.unity`）：
   编辑器内模拟真实 AR 的平面检测（蓝色半透明网格）、点击平面放置方块（`ARRaycastManager` + `TrackableType.PlaneWithinPolygon`）；
@@ -254,14 +280,19 @@ npm run dev      # http://127.0.0.1:5173
   点「关闭」或按 `Esc` 收起；点场景空白处会自动收起并开始放置新标记
 
 **Go 端**
-- 4 个接口 + 健康检查，SQLite 持久化，重启后数据仍在
+- 5 个接口（含登录）+ 健康检查，SQLite 持久化，重启后数据仍在
 - 参数校验（标题必填/长度、priority 与 status 枚举、坐标有限性）
-- CORS、请求日志、panic 恢复、请求体大小限制、优雅退出
+- **登录与权限**：`POST /api/login` 下发 token（8 小时有效），中间件校验 `Authorization: Bearer`；
+  巡检员只能查看/上报，改状态与删除仅管理员；越权返回 403、未登录返回 401
+- **审计字段**：`reporter`（谁上报）、`statusChangedBy`（谁改的状态）由服务端按登录用户写入，客户端传了也无效
+- CORS（允许 `Authorization` 头）、请求日志、panic 恢复、请求体大小限制、优雅退出
 
 **React 端**
-- 列表显示标题、描述、优先级、状态、坐标、上报时间
+- 登录页（账号密码），token 存 localStorage，401 自动清登录态回到登录页
+- 顶栏显示当前用户与角色；**管理员**可改状态/删除，**巡检员**只读并给出提示
+- 列表显示标题、描述、优先级、状态、**上报人 / 处理人**、坐标、上报时间
 - 状态下拉直接修改（`open` / `in_progress` / `resolved`），请求期间禁用并置灰
-- 统计条数 + 按状态筛选 + 手动刷新
+- 统计条数 + 按状态筛选 + 手动刷新 + 退出登录
 - 删除记录（二次确认），删除失败有错误提示
 - 后端不可用时不白屏：红色错误横幅 + 重试按钮
 - 空状态文案
@@ -274,8 +305,10 @@ npm run dev      # http://127.0.0.1:5173
   中文标题/描述在点击后的右侧详情面板和网页里显示完整。
 - 标记与问题没有做持久化绑定（没有把 `issueId` 写回标记对象）。
 - 位置只有世界坐标，没有设备编号/区域等业务语义；同一坐标在不同时间上报无法区分设备。
-- 没有登录、权限、删除、分页（数据量小，暂不需要）。
-- 后端无鉴权与限流，仅监听 `127.0.0.1`，属于本机原型。
+- 账号是**内置在内存**里的（两个演示账号），没有用户管理界面，也不落库；
+  服务重启后 token 全部失效，需要重新登录。
+- 没有分页（数据量小）、没有操作审计日志（只记了“谁上报/谁处理”，没有逐条变更历史）。
+- 仅监听 `127.0.0.1`，没有 HTTPS、没有限流，属于本机原型。
 - **AR 部分只有 XR Simulation 演示，没有真机验证**：模拟环境无法体现真实的光照变化、纹理缺失、Tracking 抖动等问题；
   模拟场景里的方块也没有挂 `ARAnchor`（模拟环境中平面静止，看不出差别，真机上需要）。
 - 场景由编辑器脚本生成，若手动改动场景后再执行“一键生成场景”，改动会被覆盖。

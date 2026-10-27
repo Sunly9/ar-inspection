@@ -15,6 +15,9 @@ export interface Issue {
   priority: Priority;
   status: Status;
   position: Position;
+  normal?: Position;
+  reporter: string;
+  statusChangedBy: string;
   createdAt: string;
   updatedAt: string;
 }

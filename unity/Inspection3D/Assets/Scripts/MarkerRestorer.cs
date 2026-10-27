@@ -35,6 +35,20 @@ namespace Inspection
 
         IEnumerator RestoreRoutine()
         {
+            // 列表接口需要登录：等 IssueFormController 的自动登录完成，最多等 5 秒
+            float waited = 0f;
+            while (!AuthClient.IsLoggedIn && waited < 5f)
+            {
+                waited += Time.unscaledDeltaTime;
+                yield return null;
+            }
+
+            if (!AuthClient.IsLoggedIn)
+            {
+                Debug.LogWarning("[巡检] 未登录，跳过历史标记恢复");
+                yield break;
+            }
+
             string baseUrl = form != null ? form.baseUrl : "http://127.0.0.1:8080";
 
             IssueDto[] issues = null;

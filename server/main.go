@@ -23,15 +23,21 @@ func main() {
 	}
 	defer store.Close()
 
-	a := &api{store: store}
+	a := &api{store: store, auth: newAuth()}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", a.handleHealth)
-	mux.HandleFunc("POST /api/issues", a.handleCreateIssue)
-	mux.HandleFunc("GET /api/issues", a.handleListIssues)
-	mux.HandleFunc("GET /api/issues/{id}", a.handleGetIssue)
-	mux.HandleFunc("PATCH /api/issues/{id}/status", a.handleUpdateStatus)
-	mux.HandleFunc("DELETE /api/issues/{id}", a.handleDeleteIssue)
+	mux.HandleFunc("POST /api/login", a.handleLogin)
+
+	// 上报：巡检员和管理员都可以
+	mux.Handle("POST /api/issues", a.require(RoleInspector, RoleAdmin)(http.HandlerFunc(a.handleCreateIssue)))
+	// 查询：登录即可（Unity 端也要登录后再恢复标记）
+	mux.Handle("GET /api/issues", a.require()(http.HandlerFunc(a.handleListIssues)))
+	mux.Handle("GET /api/issues/{id}", a.require()(http.HandlerFunc(a.handleGetIssue)))
+	// 改状态 / 删除：仅管理员
+	mux.Handle("PATCH /api/issues/{id}/status", a.require(RoleAdmin)(http.HandlerFunc(a.handleUpdateStatus)))
+	mux.Handle("DELETE /api/issues/{id}", a.require(RoleAdmin)(http.HandlerFunc(a.handleDeleteIssue)))
+
 	mux.HandleFunc("/", a.handleNotFound)
 
 	srv := &http.Server{
